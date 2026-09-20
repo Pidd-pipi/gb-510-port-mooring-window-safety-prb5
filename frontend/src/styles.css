@@ -51,6 +51,12 @@ td small { display: block; color: #7d8d97; margin-top: 4px; }
 .risk--low { color: #176c55; background: #dff3ec; }.risk--medium { color: #8a5a08; background: #fff1ce; }.risk--high, .risk--critical { color: #9d2c37; background: #fde4e6; }
 .clearance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .clearance-grid article { border-left: 3px solid #2a9d78; background: #f7fafb; padding: 13px; min-width: 0; }
+.clearance-grid article.clearance-invalid { border-left-color: #c84855; background: #fdf6f7; }
+.clearance-alert { margin: 8px 0; }
+.clearance-wait { display: block; margin-top: 8px; color: #9d5b2c; font-size: 12px; line-height: 1.5; }
+.basis-table .basis-invalid { color: #c84855; font-weight: 700; }
+.basis-table .basis-ok { color: #176c55; font-weight: 700; }
+.basis-table .basis-frozen { color: #58708a; }
 .clearance-title { display: flex; justify-content: space-between; gap: 10px; align-items: center; }.clearance-grid p { color: #576b78; min-height: 40px; }
 .clearance-grid dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; margin: 12px 0; font-size: 12px; }.clearance-grid dt { color: #72848f; }.clearance-grid dd { margin: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .audit-list code small { display: block; margin-top: 4px; }

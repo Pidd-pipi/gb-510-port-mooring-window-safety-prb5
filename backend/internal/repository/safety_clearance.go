@@ -12,6 +12,7 @@ import (
 type SafetyClearanceRepository interface {
 	List(context.Context, dto.PageQuery) (Page[model.SafetyClearance], error)
 	Get(context.Context, uint) (model.SafetyClearance, error)
+	GetForUpdate(context.Context, uint) (model.SafetyClearance, error)
 	Create(context.Context, *model.SafetyClearance) error
 	Update(context.Context, uint, uint, *model.SafetyClearance) error
 	Delete(context.Context, uint) error
@@ -31,6 +32,9 @@ func (r *safetyClearanceRepository) List(ctx context.Context, q dto.PageQuery) (
 }
 func (r *safetyClearanceRepository) Get(ctx context.Context, id uint) (model.SafetyClearance, error) {
 	return r.store.Get(ctx, id)
+}
+func (r *safetyClearanceRepository) GetForUpdate(ctx context.Context, id uint) (model.SafetyClearance, error) {
+	return r.store.GetForUpdate(ctx, id)
 }
 func (r *safetyClearanceRepository) Create(ctx context.Context, item *model.SafetyClearance) error {
 	return r.store.Create(ctx, item)

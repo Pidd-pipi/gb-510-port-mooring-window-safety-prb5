@@ -25,6 +25,13 @@ const (
 
 var AllClearanceState = []string{"pending", "cleared", "restricted", "expired"}
 
+// Clearance interlock target states: a clearance may only proceed when its
+// 系泊方案 is approved and its 风浪窗口 is safe.
+const (
+	MooringPlanStatusApproved = "approved"
+	WeatherWindowStatusSafe   = "safe"
+)
+
 var VesselCallTransitions = map[string]map[string]bool{
 	"planned":  {"approach": true, "moored": true},
 	"approach": {"moored": true, "departed": true, "planned": true},

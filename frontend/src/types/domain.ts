@@ -14,12 +14,22 @@ export interface DomainRecord {
   metricUnit: string;
   effectiveAt: string;
   evidence: string;
+  planCode?: string;
+  windowCode?: string;
   relatedCode: string;
+  planVersion?: number;
   windowVersion?: number;
   submittedBy?: string;
   submittedAt?: string;
   confirmedBy?: string;
   confirmedAt?: string;
+  // Server-computed interlock basis (gorm:"-"), re-read on every list/get.
+  interlockBasisValid?: boolean;
+  interlockInvalidReason?: string;
+  planStatus?: string;
+  windowStatus?: string;
+  currentPlanVersion?: number;
+  currentWindowVersion?: number;
   createdAt: string;
   updatedAt: string;
 }

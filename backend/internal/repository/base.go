@@ -7,6 +7,7 @@ import (
 
 	"github.com/blueship581/port-mooring-window-safety/backend/internal/dto"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrVersionConflict = errors.New("record was changed by another request")
@@ -26,9 +27,17 @@ type Store[T any] struct {
 
 func NewStore[T any](db *gorm.DB) *Store[T] { return &Store[T]{db: db} }
 
+// supportsRowLocking reports whether the active dialect understands
+// SELECT ... FOR UPDATE. The pure-Go SQLite test driver serializes writers and
+// has no such clause, so locking is skipped there.
+func supportsRowLocking(db *gorm.DB) bool {
+	name := db.Dialector.Name()
+	return name == "postgres" || name == "mysql"
+}
+
 func (s *Store[T]) List(ctx context.Context, query dto.PageQuery) (Page[T], error) {
 	page, pageSize := normalizePage(query.Page, query.PageSize)
-	db := s.db.WithContext(ctx).Model(new(T))
+	db := conn(ctx, s.db).Model(new(T))
 	if search := strings.TrimSpace(strings.ToLower(query.Search)); search != "" {
 		wildcard := "%" + search + "%"
 		db = db.Where("LOWER(code) LIKE ? OR LOWER(name) LIKE ?", wildcard, wildcard)
@@ -48,16 +57,41 @@ func (s *Store[T]) List(ctx context.Context, query dto.PageQuery) (Page[T], erro
 
 func (s *Store[T]) Get(ctx context.Context, id uint) (T, error) {
 	var item T
-	err := s.db.WithContext(ctx).First(&item, id).Error
+	err := conn(ctx, s.db).First(&item, id).Error
+	return item, err
+}
+
+// GetForUpdate re-reads a row with a row lock when the dialect supports it.
+// Inside the clearance confirm transaction it closes the race where two
+// reviewers confirm the same pending clearance concurrently.
+func (s *Store[T]) GetForUpdate(ctx context.Context, id uint) (T, error) {
+	var item T
+	db := conn(ctx, s.db)
+	if supportsRowLocking(s.db) {
+		db = db.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := db.First(&item, id).Error
 	return item, err
 }
 
 func (s *Store[T]) Create(ctx context.Context, item *T) error {
-	return s.db.WithContext(ctx).Create(item).Error
+	return conn(ctx, s.db).Create(item).Error
+}
+
+// ListByCodes returns every aggregate whose code matches the given set. The
+// clearance read model uses it to enrich a whole page with one query per
+// aggregate instead of one query per row.
+func (s *Store[T]) ListByCodes(ctx context.Context, codes []string) ([]T, error) {
+	items := make([]T, 0)
+	if len(codes) == 0 {
+		return items, nil
+	}
+	err := conn(ctx, s.db).Where("code IN ?", codes).Find(&items).Error
+	return items, err
 }
 
 func (s *Store[T]) Update(ctx context.Context, id, expectedVersion uint, item *T) error {
-	result := s.db.WithContext(ctx).Model(new(T)).
+	result := conn(ctx, s.db).Model(new(T)).
 		Where("id = ? AND version = ?", id, expectedVersion).
 		Select("*").Omit("id", "code", "created_at", "deleted_at").Updates(item)
 	if result.Error != nil {
@@ -70,7 +104,7 @@ func (s *Store[T]) Update(ctx context.Context, id, expectedVersion uint, item *T
 }
 
 func (s *Store[T]) Delete(ctx context.Context, id uint) error {
-	result := s.db.WithContext(ctx).Delete(new(T), id)
+	result := conn(ctx, s.db).Delete(new(T), id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -81,7 +115,7 @@ func (s *Store[T]) Delete(ctx context.Context, id uint) error {
 }
 
 func (s *Store[T]) CountByStatus(ctx context.Context) (map[string]int64, error) {
-	rows, err := s.db.WithContext(ctx).Model(new(T)).
+	rows, err := conn(ctx, s.db).Model(new(T)).
 		Select("status, COUNT(*) AS total").Group("status").Rows()
 	if err != nil {
 		return nil, err

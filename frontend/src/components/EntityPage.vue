@@ -7,7 +7,7 @@ import StatusBadge from './common/StatusBadge.vue';
 import MetricCard from './common/MetricCard.vue';
 import ConfirmDialog from './common/ConfirmDialog.vue';
 
-const props = defineProps<{ config: EntityConfig; store: any; hideTransitions?: boolean }>();
+const props = defineProps<{ config: EntityConfig; store: any; hideTransitions?: boolean; createDefaults?: Record<string, unknown> }>();
 const { session } = useAuth();
 const search = ref('');
 const showCreate = ref(false);
@@ -28,6 +28,7 @@ async function createDemo() {
     facility: '默认作业区', owner: '现场操作员', category: '常规', riskLevel: 'medium',
     metricValue: 25, metricUnit: 'unit', effectiveAt: new Date().toISOString(),
     evidence: '已完成创建前检查', relatedCode: '', windowVersion: 1,
+    ...props.createDefaults,
   });
   showCreate.value = false;
 }

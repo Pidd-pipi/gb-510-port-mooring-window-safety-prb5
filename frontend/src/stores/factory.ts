@@ -17,13 +17,16 @@ export function createEntityStore(id: string) {
             method: 'POST',
             body: JSON.stringify({
               status: 'cleared', expectedVersion: item.version,
-              windowVersion: item.windowVersion || 1, reason: '已复核风浪窗口版本、缆绳方案和回退措施',
+              windowVersion: item.windowVersion || 1,
+              reason: '已复核风浪窗口版本、缆绳方案和回退措施',
             }),
           });
-          await this.load(path);
         } catch (error) {
           this.error = error instanceof Error ? error.message : String(error);
         } finally {
+          // Re-read on both success and failure: the server recomputes the
+          // interlock basis (validity / invalid reason) against current data.
+          await this.load(path);
           this.loading = false;
         }
       },
