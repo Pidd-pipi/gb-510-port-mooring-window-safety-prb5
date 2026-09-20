@@ -3,7 +3,9 @@ package dto
 import "time"
 
 // CreateSafetyClearance is the public write contract for 安全许可. Status is deliberately
-// omitted so callers cannot bypass the service state machine.
+// omitted so callers cannot bypass the service state machine. PlanCode and
+// WindowCode pin the plan/window pair that the interlock re-reads on submit
+// and release.
 type CreateSafetyClearance struct {
 	Code          string    `json:"code" binding:"required,min=2,max=64"`
 	Name          string    `json:"name" binding:"required,min=2,max=160"`
@@ -17,6 +19,8 @@ type CreateSafetyClearance struct {
 	EffectiveAt   time.Time `json:"effectiveAt" binding:"required"`
 	Evidence      string    `json:"evidence" binding:"max=2000"`
 	RelatedCode   string    `json:"relatedCode" binding:"max=64"`
+	PlanCode      string    `json:"planCode" binding:"required,min=2,max=64"`
+	WindowCode    string    `json:"windowCode" binding:"required,min=2,max=64"`
 	WindowVersion uint      `json:"windowVersion" binding:"omitempty,min=1"`
 }
 
@@ -33,5 +37,7 @@ type UpdateSafetyClearance struct {
 	EffectiveAt     time.Time `json:"effectiveAt" binding:"required"`
 	Evidence        string    `json:"evidence" binding:"max=2000"`
 	RelatedCode     string    `json:"relatedCode" binding:"max=64"`
+	PlanCode        string    `json:"planCode" binding:"omitempty,max=64"`
+	WindowCode      string    `json:"windowCode" binding:"omitempty,max=64"`
 	WindowVersion   uint      `json:"windowVersion" binding:"omitempty,min=1"`
 }

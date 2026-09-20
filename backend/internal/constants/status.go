@@ -25,6 +25,13 @@ const (
 
 var AllClearanceState = []string{"pending", "cleared", "restricted", "expired"}
 
+// Interlock prerequisites for 安全许可: the clearance may only be submitted or
+// released while its mooring plan stays approved and its weather window stays safe.
+const (
+	MooringPlanStatusApproved = "approved"
+	WeatherWindowStatusSafe   = "safe"
+)
+
 var VesselCallTransitions = map[string]map[string]bool{
 	"planned":  {"approach": true, "moored": true},
 	"approach": {"moored": true, "departed": true, "planned": true},

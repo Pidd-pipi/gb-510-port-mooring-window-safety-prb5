@@ -10,7 +10,7 @@ const confirmClearance = (item: DomainRecord) => store.confirmClearance('clearan
 </script>
 
 <template>
-  <EntityPage :config="ENTITY_CONFIGS[3]" :store="store" hide-transitions>
+  <EntityPage :config="ENTITY_CONFIGS[3]" :store="store" hide-transitions show-interlock>
     <template #insight><ClearancePanel :records="store.items" mode="clearance" @confirm="confirmClearance"/></template>
   </EntityPage>
 </template>

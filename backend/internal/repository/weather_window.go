@@ -12,6 +12,8 @@ import (
 type WeatherWindowRepository interface {
 	List(context.Context, dto.PageQuery) (Page[model.WeatherWindow], error)
 	Get(context.Context, uint) (model.WeatherWindow, error)
+	FindByCode(context.Context, string) (model.WeatherWindow, error)
+	LockByCode(context.Context, string) (model.WeatherWindow, error)
 	Create(context.Context, *model.WeatherWindow) error
 	Update(context.Context, uint, uint, *model.WeatherWindow) error
 	Delete(context.Context, uint) error
@@ -31,6 +33,12 @@ func (r *weatherWindowRepository) List(ctx context.Context, q dto.PageQuery) (Pa
 }
 func (r *weatherWindowRepository) Get(ctx context.Context, id uint) (model.WeatherWindow, error) {
 	return r.store.Get(ctx, id)
+}
+func (r *weatherWindowRepository) FindByCode(ctx context.Context, code string) (model.WeatherWindow, error) {
+	return r.store.FindByCode(ctx, code)
+}
+func (r *weatherWindowRepository) LockByCode(ctx context.Context, code string) (model.WeatherWindow, error) {
+	return r.store.LockByCode(ctx, code)
 }
 func (r *weatherWindowRepository) Create(ctx context.Context, item *model.WeatherWindow) error {
 	return r.store.Create(ctx, item)

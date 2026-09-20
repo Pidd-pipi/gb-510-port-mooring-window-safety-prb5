@@ -7,7 +7,7 @@ import StatusBadge from './common/StatusBadge.vue';
 import MetricCard from './common/MetricCard.vue';
 import ConfirmDialog from './common/ConfirmDialog.vue';
 
-const props = defineProps<{ config: EntityConfig; store: any; hideTransitions?: boolean }>();
+const props = defineProps<{ config: EntityConfig; store: any; hideTransitions?: boolean; showInterlock?: boolean }>();
 const { session } = useAuth();
 const search = ref('');
 const showCreate = ref(false);
@@ -28,6 +28,7 @@ async function createDemo() {
     facility: '默认作业区', owner: '现场操作员', category: '常规', riskLevel: 'medium',
     metricValue: 25, metricUnit: 'unit', effectiveAt: new Date().toISOString(),
     evidence: '已完成创建前检查', relatedCode: '', windowVersion: 1,
+    ...props.config.demoLinks,
   });
   showCreate.value = false;
 }
@@ -68,6 +69,16 @@ async function confirmTransition() {
           <template #default="{ row }"><strong>{{ row.name }}</strong><small>{{ row.facility }}</small></template>
         </el-table-column>
         <el-table-column label="状态" width="140"><template #default="{ row }"><StatusBadge :status="row.status"/></template></el-table-column>
+        <el-table-column v-if="showInterlock" label="联锁依据" min-width="230">
+          <template #default="{ row }">
+            <template v-if="row.interlock">
+              <small>方案 {{ row.interlock.planCode }} · {{ row.interlock.planStatus || '缺失' }}</small>
+              <small>窗口 {{ row.interlock.windowCode }} · {{ row.interlock.windowStatus || '缺失' }} · 当前 v{{ row.interlock.currentWindowVersion }}/预期 v{{ row.interlock.expectedWindowVersion }}</small>
+              <small v-if="row.interlock.invalidReason" class="invalid">失效：{{ row.interlock.invalidReason }}</small>
+            </template>
+            <span v-else class="muted">未绑定方案/窗口</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="riskLevel" label="风险" width="90"/>
         <el-table-column prop="owner" label="责任人"/>
         <el-table-column label="指标"><template #default="{ row }">{{ row.metricValue }} {{ row.metricUnit }}</template></el-table-column>

@@ -18,8 +18,12 @@ const displayedRecords = computed(() => {
   return records.slice(0, 3);
 });
 
+function interlockBlocked(item: DomainRecord): boolean {
+  return props.mode === 'clearance' && item.status === 'pending' && !!item.interlock && !item.interlock.satisfied;
+}
+
 function canAct(item: DomainRecord): boolean {
-  if (props.mode !== 'clearance' || item.status !== 'pending') return false;
+  if (props.mode !== 'clearance' || item.status !== 'pending' || interlockBlocked(item)) return false;
   if (!item.submittedBy) return canSubmit.value;
   return canReview.value && item.submittedBy !== session.value?.username;
 }
@@ -33,7 +37,7 @@ function actionLabel(item: DomainRecord): string {
   <section class="clearance-panel" aria-label="安全许可协同面板">
     <header>
       <div><span class="eyebrow">TWO-PERSON SAFETY</span><strong>{{ mode === 'window' ? '窗口许可依据' : '双人安全确认' }}</strong></div>
-      <small>{{ mode === 'window' ? '窗口版本将随许可审计固化' : '提交人与复核人必须为不同账号' }}</small>
+      <small>{{ mode === 'window' ? '窗口版本将随许可审计固化' : '提交人与复核人必须为不同账号，提交与放行前重读方案与窗口联锁' }}</small>
     </header>
     <div class="clearance-grid">
       <article v-for="item in displayedRecords" :key="item.id">
@@ -50,7 +54,28 @@ function actionLabel(item: DomainRecord): string {
             <dt>评估证据</dt><dd>{{ item.evidence || '待补充' }}</dd>
           </template>
         </dl>
+        <template v-if="mode === 'clearance' && item.interlock">
+          <dl class="interlock-basis">
+            <dt>方案联锁</dt>
+            <dd :class="{ invalid: item.status === 'pending' && !item.interlock.planApproved }">
+              {{ item.interlock.planCode }} · {{ item.interlock.planStatus || '缺失' }}
+            </dd>
+            <dt>窗口联锁</dt>
+            <dd :class="{ invalid: item.status === 'pending' && (!item.interlock.windowSafe || !item.interlock.windowVersionMatch) }">
+              {{ item.interlock.windowCode }} · {{ item.interlock.windowStatus || '缺失' }} ·
+              当前 v{{ item.interlock.currentWindowVersion }}/预期 v{{ item.interlock.expectedWindowVersion }}
+            </dd>
+          </dl>
+          <el-alert
+            v-if="item.status === 'pending' && item.interlock.invalidReason"
+            :title="`联锁失效：${item.interlock.invalidReason}`"
+            type="error"
+            :closable="false"
+            show-icon
+          />
+        </template>
         <el-button v-if="mode === 'clearance' && canAct(item)" type="primary" @click="emit('confirm', item)">{{ actionLabel(item) }}</el-button>
+        <small v-else-if="interlockBlocked(item)" class="invalid">联锁未满足，禁止提交与放行</small>
         <small v-else-if="mode === 'clearance' && item.status === 'pending' && item.submittedBy">等待其他复核员确认</small>
       </article>
     </div>

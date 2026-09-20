@@ -65,6 +65,13 @@ func (s *securityService) AuditWithWindowVersion(ctx context.Context, actor, req
 }
 
 func (s *securityService) audit(ctx context.Context, actor, requestID, action, entityType string, entityID uint, before, after, detail string, windowVersion uint) error {
+	return appendAudit(ctx, s.repository, actor, requestID, action, entityType, entityID, before, after, detail, windowVersion)
+}
+
+// appendAudit is the single audit-normalization point. It accepts any
+// SecurityRepository, including transaction-bound ones, so clearance state
+// changes and their audit entries commit or roll back together.
+func appendAudit(ctx context.Context, repo repository.SecurityRepository, actor, requestID, action, entityType string, entityID uint, before, after, detail string, windowVersion uint) error {
 	if actor == "" {
 		actor = "system"
 	}
@@ -74,7 +81,7 @@ func (s *securityService) audit(ctx context.Context, actor, requestID, action, e
 	if action == "" || entityType == "" {
 		return fmt.Errorf("audit action and entity type are required")
 	}
-	return s.repository.AppendAudit(ctx, &model.AuditLog{
+	return repo.AppendAudit(ctx, &model.AuditLog{
 		Actor: actor, RequestID: requestID, Action: action, EntityType: entityType,
 		EntityID: entityID, BeforeState: before, AfterState: after, Detail: detail, WindowVersion: windowVersion,
 		CreatedAt: time.Now().UTC(),

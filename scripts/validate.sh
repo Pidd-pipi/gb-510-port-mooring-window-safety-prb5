@@ -50,23 +50,53 @@ curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/$resource/$id/transition
 viewer_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${BACKEND_PORT}/api/vessels" -H "Authorization: Bearer $viewer_token" -H 'Content-Type: application/json' -d "$payload")
 [ "$viewer_status" = "403" ]
 
+# Interlock prerequisites: an approved mooring plan and a safe weather window.
+plan_code="PLAN-SMOKE-$(date +%s)"
+plan_payload=$(printf '{"code":"%s","name":"Interlock smoke plan","description":"Approved plan for clearance interlock","facility":"Validation Berth","owner":"admin","category":"smoke","riskLevel":"low","metricValue":1,"metricUnit":"unit","effectiveAt":"%s","evidence":"scripts/validate.sh","relatedCode":"SMOKE"}' "$plan_code" "$now")
+plan=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/plans" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "$plan_payload")
+plan_id=$(printf '%s' "$plan" | jq -er '.data.id')
+curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/plans/$plan_id/transition" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{"status":"approved","expectedVersion":1,"reason":"approve interlock smoke plan"}' | jq -e '.data.status == "approved"' >/dev/null
+window_code="WINDOW-SMOKE-$(date +%s)"
+window_payload=$(printf '{"code":"%s","name":"Interlock smoke window","description":"Safe window for clearance interlock","facility":"Validation Berth","owner":"admin","category":"smoke","riskLevel":"low","metricValue":1,"metricUnit":"unit","effectiveAt":"%s","evidence":"scripts/validate.sh","relatedCode":"SMOKE"}' "$window_code" "$now")
+window=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/weather-windows" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "$window_payload")
+window_id=$(printf '%s' "$window" | jq -er '.data.id')
+window_safe=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/weather-windows/$window_id/transition" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{"status":"safe","expectedVersion":1,"reason":"mark interlock smoke window safe"}')
+printf '%s' "$window_safe" | jq -e '.data.status == "safe"' >/dev/null
+window_version=$(printf '%s' "$window_safe" | jq -er '.data.version')
+
 clearance_code="CLEARANCE-SMOKE-$(date +%s)"
-clearance_payload=$(printf '{"code":"%s","name":"Two-person clearance validation","description":"Independent reviewer workflow","facility":"Validation Berth","owner":"operator","category":"safety","riskLevel":"high","metricValue":18,"metricUnit":"kn","effectiveAt":"%s","evidence":"Mooring lines and rollback checked","relatedCode":"WW-SMOKE","windowVersion":1}' "$clearance_code" "$now")
+clearance_payload=$(printf '{"code":"%s","name":"Two-person clearance validation","description":"Independent reviewer workflow","facility":"Validation Berth","owner":"operator","category":"safety","riskLevel":"high","metricValue":18,"metricUnit":"kn","effectiveAt":"%s","evidence":"Mooring lines and rollback checked","relatedCode":"%s","planCode":"%s","windowCode":"%s","windowVersion":%s}' "$clearance_code" "$now" "$window_code" "$plan_code" "$window_code" "$window_version")
 clearance=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance" -H "Authorization: Bearer $operator_token" -H 'Content-Type: application/json' -d "$clearance_payload")
 clearance_id=$(printf '%s' "$clearance" | jq -er '.data.id')
 clearance_version=$(printf '%s' "$clearance" | jq -er '.data.version')
-submit_payload=$(printf '{"status":"cleared","expectedVersion":%s,"reason":"operator submitted safety package","windowVersion":11}' "$clearance_version")
+printf '%s' "$clearance" | jq -e --arg plan "$plan_code" --arg window "$window_code" '.data.planCode == $plan and .data.windowCode == $window and .data.interlock.satisfied == true' >/dev/null
+submit_payload=$(printf '{"status":"cleared","expectedVersion":%s,"reason":"operator submitted safety package","windowVersion":%s}' "$clearance_version" "$window_version")
 submitted=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$clearance_id/transition" -H "Authorization: Bearer $operator_token" -H 'Content-Type: application/json' -d "$submit_payload")
-printf '%s' "$submitted" | jq -e '.data.status == "pending" and .data.submittedBy == "operator" and .data.confirmedBy == "" and .data.windowVersion == 11' >/dev/null
+printf '%s' "$submitted" | jq -e --argjson version "$window_version" '.data.status == "pending" and .data.submittedBy == "operator" and .data.confirmedBy == "" and .data.windowVersion == $version' >/dev/null
 submitted_version=$(printf '%s' "$submitted" | jq -er '.data.version')
-self_payload=$(printf '{"status":"cleared","expectedVersion":%s,"reason":"operator attempted self approval","windowVersion":11}' "$submitted_version")
+self_payload=$(printf '{"status":"cleared","expectedVersion":%s,"reason":"operator attempted self approval","windowVersion":%s}' "$submitted_version" "$window_version")
 self_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$clearance_id/transition" -H "Authorization: Bearer $operator_token" -H 'Content-Type: application/json' -d "$self_payload")
 [ "$self_status" = "422" ]
 reviewed=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$clearance_id/transition" -H "Authorization: Bearer $reviewer_token" -H 'Content-Type: application/json' -d "$self_payload")
-printf '%s' "$reviewed" | jq -e '.data.status == "cleared" and .data.submittedBy == "operator" and .data.confirmedBy == "reviewer" and .data.windowVersion == 11' >/dev/null
+printf '%s' "$reviewed" | jq -e --argjson version "$window_version" '.data.status == "cleared" and .data.submittedBy == "operator" and .data.confirmedBy == "reviewer" and .data.windowVersion == $version' >/dev/null
+
+# Interlock invalidation: degrading the window blocks a pending release while released history stays untouched.
+stale_code="CLEARANCE-STALE-$(date +%s)"
+stale_payload=$(printf '{"code":"%s","name":"Stale interlock validation","description":"Window degrades before release","facility":"Validation Berth","owner":"operator","category":"safety","riskLevel":"high","metricValue":18,"metricUnit":"kn","effectiveAt":"%s","evidence":"Mooring lines and rollback checked","relatedCode":"%s","planCode":"%s","windowCode":"%s","windowVersion":%s}' "$stale_code" "$now" "$window_code" "$plan_code" "$window_code" "$window_version")
+stale=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance" -H "Authorization: Bearer $operator_token" -H 'Content-Type: application/json' -d "$stale_payload")
+stale_id=$(printf '%s' "$stale" | jq -er '.data.id')
+stale_version=$(printf '%s' "$stale" | jq -er '.data.version')
+stale_submit=$(curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$stale_id/transition" -H "Authorization: Bearer $operator_token" -H 'Content-Type: application/json' -d "$(printf '{"status":"cleared","expectedVersion":%s,"reason":"operator submitted safety package","windowVersion":%s}' "$stale_version" "$window_version")")
+stale_version=$(printf '%s' "$stale_submit" | jq -er '.data.version')
+curl -fsS -X POST "http://127.0.0.1:${BACKEND_PORT}/api/weather-windows/$window_id/transition" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "$(printf '{"status":"restricted","expectedVersion":%s,"reason":"storm front degrades the window"}' "$window_version")" | jq -e '.data.status == "restricted"' >/dev/null
+blocked_payload=$(printf '{"status":"cleared","expectedVersion":%s,"reason":"reviewer release after window degraded","windowVersion":%s}' "$stale_version" "$window_version")
+blocked_status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$stale_id/transition" -H "Authorization: Bearer $reviewer_token" -H 'Content-Type: application/json' -d "$blocked_payload")
+[ "$blocked_status" = "422" ]
+curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$stale_id" -H "Authorization: Bearer $token" | jq -e '.data.status == "pending" and .data.interlock.satisfied == false and (.data.interlock.invalidReason | length > 0)' >/dev/null
+curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/clearance/$clearance_id" -H "Authorization: Bearer $token" | jq -e '.data.status == "cleared" and .data.interlock.invalidReason == ""' >/dev/null
 
 curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/audits?page=1&pageSize=100" -H "Authorization: Bearer $token" | jq -e '.meta.total >= 2' >/dev/null
-curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/audits?page=1&pageSize=100" -H "Authorization: Bearer $token" | jq -e --argjson id "$clearance_id" '.data | any(.entityType == "SafetyClearance" and .entityId == $id and .windowVersion == 11 and (.requestId | length > 0))' >/dev/null
+curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/audits?page=1&pageSize=100" -H "Authorization: Bearer $token" | jq -e --argjson id "$clearance_id" --argjson version "$window_version" '.data | any(.entityType == "SafetyClearance" and .entityId == $id and .windowVersion == $version and (.requestId | length > 0))' >/dev/null
 curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/audit-summary?windowHours=24" -H "Authorization: Bearer $token" | jq -e '.data.total >= 2 and .data.transitions >= 1' >/dev/null
 docker compose ps
 [ "${KEEP_RUNNING:-0}" = "1" ] && echo "KEEP_RUNNING=1: containers left running for browser validation"

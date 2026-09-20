@@ -7,6 +7,7 @@ import (
 
 	"github.com/blueship581/port-mooring-window-safety/backend/internal/dto"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrVersionConflict = errors.New("record was changed by another request")
@@ -49,6 +50,26 @@ func (s *Store[T]) List(ctx context.Context, query dto.PageQuery) (Page[T], erro
 func (s *Store[T]) Get(ctx context.Context, id uint) (T, error) {
 	var item T
 	err := s.db.WithContext(ctx).First(&item, id).Error
+	return item, err
+}
+
+// FindByCode resolves an aggregate by its immutable human-facing code.
+func (s *Store[T]) FindByCode(ctx context.Context, code string) (T, error) {
+	var item T
+	err := s.db.WithContext(ctx).Where("code = ?", code).First(&item).Error
+	return item, err
+}
+
+// LockByCode resolves an aggregate by code while holding a row lock until the
+// surrounding transaction ends, so interlock re-reads cannot race concurrent
+// updates. SQLite ignores the locking clause, which keeps local tests simple.
+func (s *Store[T]) LockByCode(ctx context.Context, code string) (T, error) {
+	var item T
+	db := s.db.WithContext(ctx).Where("code = ?", code)
+	if s.db.Dialector.Name() != "sqlite" {
+		db = db.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := db.First(&item).Error
 	return item, err
 }
 

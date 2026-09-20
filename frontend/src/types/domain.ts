@@ -1,4 +1,18 @@
 
+export interface ClearanceInterlock {
+  planCode: string;
+  planStatus: string;
+  planApproved: boolean;
+  windowCode: string;
+  windowStatus: string;
+  windowSafe: boolean;
+  expectedWindowVersion: number;
+  currentWindowVersion: number;
+  windowVersionMatch: boolean;
+  satisfied: boolean;
+  invalidReason: string;
+}
+
 export interface DomainRecord {
   id: number;
   code: string;
@@ -15,11 +29,14 @@ export interface DomainRecord {
   effectiveAt: string;
   evidence: string;
   relatedCode: string;
+  planCode?: string;
+  windowCode?: string;
   windowVersion?: number;
   submittedBy?: string;
   submittedAt?: string;
   confirmedBy?: string;
   confirmedAt?: string;
+  interlock?: ClearanceInterlock;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,4 +48,10 @@ export interface AuditLog {
   id: number; requestId: string; actor: string; action: string; entityType: string;
   entityId: number; beforeState: string; afterState: string; windowVersion?: number; detail: string; createdAt: string;
 }
-export interface EntityConfig { key: string; path: string; label: string; statuses: readonly string[] }
+export interface EntityConfig {
+  key: string;
+  path: string;
+  label: string;
+  statuses: readonly string[];
+  demoLinks?: { planCode: string; windowCode: string };
+}

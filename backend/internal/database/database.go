@@ -213,19 +213,22 @@ func seedSafetyClearance(ctx context.Context, db *gorm.DB) error {
 		{BaseModel: model.BaseModel{Code: "SC-001", Name: "安全许可示例一", Status: "pending", Version: 1,
 			Description: "用于启动验证和主要流程演示的安全许可记录"}, Facility: "港口系泊安全窗口评估区域1", Owner: "运行一组",
 			Category: "常规", RiskLevel: "low", MetricValue: 12.5, MetricUnit: "unit",
-			EffectiveAt: now.Add(0 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "WW-001",
+			EffectiveAt: now.Add(0 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "WW-002",
+			PlanCode: "MP-003", WindowCode: "WW-002",
 			WindowVersion: 1, SubmittedBy: "operator", SubmittedAt: timePointer(now.Add(-15 * time.Minute))},
 
 		{BaseModel: model.BaseModel{Code: "SC-002", Name: "安全许可示例二", Status: "cleared", Version: 1,
 			Description: "用于启动验证和主要流程演示的安全许可记录"}, Facility: "港口系泊安全窗口评估区域2", Owner: "质量复核组",
 			Category: "重点", RiskLevel: "medium", MetricValue: 25.0, MetricUnit: "%",
 			EffectiveAt: now.Add(3 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "WW-002",
+			PlanCode: "MP-003", WindowCode: "WW-002",
 			WindowVersion: 1, SubmittedBy: "operator", SubmittedAt: timePointer(now.Add(-45 * time.Minute)), ConfirmedBy: "reviewer", ConfirmedAt: timePointer(now.Add(-30 * time.Minute))},
 
 		{BaseModel: model.BaseModel{Code: "SC-003", Name: "安全许可示例三", Status: "restricted", Version: 1,
 			Description: "用于启动验证和主要流程演示的安全许可记录"}, Facility: "港口系泊安全窗口评估区域3", Owner: "安全主管组",
 			Category: "复核", RiskLevel: "high", MetricValue: 37.5, MetricUnit: "score",
-			EffectiveAt: now.Add(6 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "WW-003", WindowVersion: 1},
+			EffectiveAt: now.Add(6 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "WW-003",
+			PlanCode: "MP-001", WindowCode: "WW-003", WindowVersion: 1},
 	}
 	return db.WithContext(ctx).Create(&items).Error
 }
